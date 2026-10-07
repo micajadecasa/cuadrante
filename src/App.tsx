@@ -28,7 +28,14 @@ import { ReportModal } from './components/ReportModal';
 import { EmployeeModal } from './components/EmployeeModal';
 import { NotificationModal } from './components/NotificationModal';
 import { ConfirmModal } from './components/ConfirmModal';
+import { DriveBackupModal } from './components/DriveBackupModal';
+import { QuadrantBackupData } from './services/driveService';
 import { Calendar as CalendarIcon } from 'lucide-react';
+
+const MONTH_NAMES_ES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
 
 const STORAGE_KEYS = {
   YEAR: 'cuadrante_year',
@@ -122,6 +129,9 @@ export default function App() {
   const [employeeToEdit, setEmployeeToEdit] = useState<Employee | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [isResetMonthConfirmOpen, setIsResetMonthConfirmOpen] = useState(false);
+  const [isDriveBackupOpen, setIsDriveBackupOpen] = useState(false);
+  const [driveBackupInitialMode, setDriveBackupInitialMode] = useState<'save' | 'load'>('save');
 
   // Persistence
   useEffect(() => {
@@ -305,6 +315,59 @@ export default function App() {
     setIsResetConfirmOpen(false);
   };
 
+  const handleExecuteResetCurrentMonth = () => {
+    setYearAssignmentsMap(prev => {
+      const yearCopy = { ...(prev[year] || {}) };
+      yearCopy[month] = {};
+      return {
+        ...prev,
+        [year]: yearCopy,
+      };
+    });
+    setIsResetMonthConfirmOpen(false);
+  };
+
+  const currentBackupData: QuadrantBackupData = useMemo(() => {
+    return {
+      app: 'CuadrantePro - Gasteiz de Vigilancia',
+      version: '2.0.0',
+      backupDate: new Date().toISOString(),
+      serviceName,
+      year,
+      month,
+      employees,
+      shifts,
+      yearAssignmentsMap,
+      convenio,
+      customHolidays,
+      notes,
+    };
+  }, [
+    serviceName,
+    year,
+    month,
+    employees,
+    shifts,
+    yearAssignmentsMap,
+    convenio,
+    customHolidays,
+    notes,
+  ]);
+
+  const handleRestoreBackupData = (data: QuadrantBackupData) => {
+    if (data.serviceName) setServiceName(data.serviceName);
+    if (data.year) setYear(data.year);
+    if (data.month) setMonth(data.month);
+    if (data.employees && Array.isArray(data.employees)) setEmployees(data.employees);
+    if (data.shifts && Array.isArray(data.shifts)) setShifts(data.shifts);
+    if (data.yearAssignmentsMap) {
+      setYearAssignmentsMap(data.yearAssignmentsMap);
+    }
+    if (data.convenio) setConvenio(data.convenio);
+    if (data.customHolidays) setCustomHolidays(data.customHolidays);
+    if (typeof data.notes === 'string') setNotes(data.notes);
+  };
+
   const handleExportPDF = () => {
     exportQuadrantToPDF(
       year,
@@ -349,6 +412,15 @@ export default function App() {
         onOpenConvenio={() => setIsConvenioOpen(true)}
         onOpenReport={() => setIsReportOpen(true)}
         onOpenGoogleSync={() => setIsGoogleSyncOpen(true)}
+        onOpenSaveDrive={() => {
+          setDriveBackupInitialMode('save');
+          setIsDriveBackupOpen(true);
+        }}
+        onOpenUploadBackup={() => {
+          setDriveBackupInitialMode('load');
+          setIsDriveBackupOpen(true);
+        }}
+        onResetCurrentMonth={() => setIsResetMonthConfirmOpen(true)}
         onOpenNotifications={() => setIsNotificationsOpen(true)}
         onOpenAddEmployee={() => {
           setEmployeeToEdit(null);
@@ -553,6 +625,24 @@ export default function App() {
         cancelLabel="Cancelar"
         onCancel={() => setIsResetConfirmOpen(false)}
         onConfirm={handleExecuteResetToDemo}
+      />
+
+      <ConfirmModal
+        isOpen={isResetMonthConfirmOpen}
+        title={`Restablecer Parte de ${MONTH_NAMES_ES[month - 1]} ${year}`}
+        message={`¿Estás seguro de que deseas vaciar y restablecer todas las asignaciones de turnos de ${MONTH_NAMES_ES[month - 1]} de ${year}? Los vigilantes dados de alta, el catálogo de turnos y el resto de meses del año no se modificarán.`}
+        confirmLabel="Sí, vaciar turnos del mes"
+        cancelLabel="Cancelar"
+        onCancel={() => setIsResetMonthConfirmOpen(false)}
+        onConfirm={handleExecuteResetCurrentMonth}
+      />
+
+      <DriveBackupModal
+        isOpen={isDriveBackupOpen}
+        onClose={() => setIsDriveBackupOpen(false)}
+        currentBackupData={currentBackupData}
+        onRestoreBackupData={handleRestoreBackupData}
+        initialMode={driveBackupInitialMode}
       />
     </div>
   );

@@ -11,6 +11,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  Cloud,
+  Upload,
+  CalendarX,
 } from 'lucide-react';
 import { GasteizLogo } from '../constants/logo';
 
@@ -26,6 +29,9 @@ interface HeaderProps {
   onOpenConvenio: () => void;
   onOpenReport: () => void;
   onOpenGoogleSync: () => void;
+  onOpenSaveDrive: () => void;
+  onOpenUploadBackup: () => void;
+  onResetCurrentMonth: () => void;
   onOpenNotifications: () => void;
   onOpenAddEmployee: () => void;
   onExportPDF: () => void;
@@ -50,6 +56,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenConvenio,
   onOpenReport,
   onOpenGoogleSync,
+  onOpenSaveDrive,
+  onOpenUploadBackup,
+  onResetCurrentMonth,
   onOpenNotifications,
   onOpenAddEmployee,
   onExportPDF,
@@ -103,7 +112,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Date Selector */}
+        {/* Date Selector with Current Month Reset Icon */}
         <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700/80 px-2 py-1 rounded-xl shadow-inner">
           <button
             onClick={handlePrevMonth}
@@ -145,9 +154,21 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <ChevronRight className="w-4 h-4" />
           </button>
+
+          {/* Button (Icon) to reset/clear only the current month's quadrant */}
+          <div className="pl-1 border-l border-slate-700">
+            <button
+              type="button"
+              onClick={onResetCurrentMonth}
+              className="p-1.5 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition cursor-pointer"
+              title={`Restablecer/limpiar los turnos de ${MONTH_NAMES_ES[month - 1]} ${year}`}
+            >
+              <CalendarX className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons in PC View */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Mobile / Worker View toggle */}
           <button
@@ -160,6 +181,26 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Smartphone className="w-3.5 h-3.5" />
             <span>{isMobileView ? 'Volver a PC' : 'Vista Móvil'}</span>
+          </button>
+
+          {/* 1. Button to SAVE EVERYTHING to Google Drive */}
+          <button
+            onClick={onOpenSaveDrive}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition shadow-sm cursor-pointer"
+            title="Guardar todos los datos y cuadrantes en Google Drive"
+          >
+            <Cloud className="w-3.5 h-3.5" />
+            <span>Guardar en Drive</span>
+          </button>
+
+          {/* 2. Button to UPLOAD / RESTORE saved file or from Drive */}
+          <button
+            onClick={onOpenUploadBackup}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition shadow-sm cursor-pointer"
+            title="Subir archivo .json guardado o restaurar desde Google Drive"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Subir Cuadrante</span>
           </button>
 
           {/* Export PDF */}
@@ -236,7 +277,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onResetToDemo}
             className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
-            title="Restaurar datos de la plantilla de Enero 2026"
+            title="Restaurar datos originales de Enero 2026"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
