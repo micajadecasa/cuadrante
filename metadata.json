@@ -1,0 +1,6 @@
+{
+  "name": "CuadrantePro - Gestión de Turnos de Seguridad Privada",
+  "description": "Software profesional para la planificación de cuadrantes, turnos diurnos y nocturnos de vigilantes de seguridad, cálculo automático de nómina según convenio y sincronización con Google Calendar.",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
