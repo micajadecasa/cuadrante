@@ -12,7 +12,7 @@ import {
   Edit2,
   HelpCircle,
 } from 'lucide-react';
-import { validateConvenioRules } from '../services/calculationService';
+import { validateConvenioRules, calculateShiftHolidayHours } from '../services/calculationService';
 import { ConfirmModal } from './ConfirmModal';
 
 interface QuadrantGridProps {
@@ -334,6 +334,10 @@ export const QuadrantGrid: React.FC<QuadrantGridProps> = ({
                     let colBg = 'bg-white';
                     if (isFestive) colBg = 'bg-red-50/40';
 
+                    const shiftHolidayHours = shift
+                      ? calculateShiftHolidayHours(shift, day.dayOfMonth - 1, days, convenio)
+                      : 0;
+
                     return (
                       <td
                         key={day.dayOfMonth}
@@ -353,7 +357,7 @@ export const QuadrantGrid: React.FC<QuadrantGridProps> = ({
                               color: shift.textColor,
                             }}
                             className="w-full h-8 flex items-center justify-center font-bold text-xs cursor-grab active:cursor-grabbing transition shadow-xs hover:brightness-95"
-                            title={`${employee.name} - Día ${day.dayOfMonth}\nTurno: ${shift.name}\nHorario: ${shift.startTime} - ${shift.endTime}\nHoras: ${shift.totalHours}h (Noche: ${shift.nightHours}h)\n${
+                            title={`${employee.name} - Día ${day.dayOfMonth}\nTurno: ${shift.name}\nHorario: ${shift.startTime} - ${shift.endTime}\nHoras totales: ${shift.totalHours}h (Noche: ${shift.nightHours}h${shiftHolidayHours > 0 ? `, Festivas: ${shiftHolidayHours}h` : ''})\n${
                               isFestive ? 'DÍA FESTIVO' : ''
                             }\n(Arrastra para mover a otro día o vigilante)`}
                           >

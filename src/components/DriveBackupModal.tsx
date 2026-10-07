@@ -332,6 +332,30 @@ export const DriveBackupModal: React.FC<DriveBackupModalProps> = ({
               </div>
             </div>
 
+            {/* Resumen de configuración completa que se guarda */}
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+              <span className="text-[11px] font-bold text-slate-700 block mb-1">
+                Contenido del archivo .JSON (Configuración Completa Anual):
+              </span>
+              <div className="flex flex-wrap gap-1.5 text-[10px]">
+                <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-semibold">
+                  ✓ 12 Meses del Año (Ene - Dic)
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
+                  ✓ {currentBackupData.employees.length} Vigilantes
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-semibold">
+                  ✓ {currentBackupData.shifts.length} Turnos
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-semibold">
+                  ✓ Tarifas Económicas y Convenio
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-800 font-semibold">
+                  ✓ Festivos y Notas Oficiales
+                </span>
+              </div>
+            </div>
+
             {/* Local JSON Download */}
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-3">
               <div>

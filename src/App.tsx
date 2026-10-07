@@ -5,11 +5,11 @@ import {
   ShiftType,
 } from './types/quadrant';
 import {
-  DEFAULT_ASSIGNMENTS_ENERO_2026,
+  DEFAULT_ASSIGNMENTS_ENERO_2027,
   DEFAULT_CONVENIO,
   DEFAULT_EMPLOYEES,
   DEFAULT_SHIFTS,
-  SPANISH_HOLIDAYS_2026,
+  ALAVA_HOLIDAYS_2027,
 } from './constants/defaultData';
 import {
   calculateAnnualHoursForEmployee,
@@ -17,7 +17,7 @@ import {
   calculateEmployeeStats,
   getDaysInMonth,
 } from './services/calculationService';
-import { exportQuadrantToCSV, exportQuadrantToPDF } from './services/exportService';
+import { exportQuadrantToPDF } from './services/exportService';
 import { Header } from './components/Header';
 import { ShiftPalette } from './components/ShiftPalette';
 import { QuadrantGrid } from './components/QuadrantGrid';
@@ -45,14 +45,16 @@ const STORAGE_KEYS = {
   SHIFTS: 'cuadrante_shifts',
   ALL_YEAR_ASSIGNMENTS: 'cuadrante_year_assignments_map',
   CONVENIO: 'cuadrante_convenio',
-  HOLIDAYS: 'cuadrante_custom_holidays',
+  HOLIDAYS: 'cuadrante_custom_holidays_2027',
   NOTES: 'cuadrante_notes',
 };
 
 export default function App() {
   const [year, setYear] = useState<number>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.YEAR);
-    return saved ? Number(saved) : 2026;
+    const parsed = saved ? Number(saved) : 2027;
+    // Si estaba guardado 2025 o 2026, forzar 2027
+    return parsed === 2025 || parsed === 2026 ? 2027 : parsed;
   });
 
   const [month, setMonth] = useState<number>(() => {
@@ -82,14 +84,20 @@ export default function App() {
     const saved = localStorage.getItem(STORAGE_KEYS.ALL_YEAR_ASSIGNMENTS);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (parsed[2027]) return parsed;
+        // Si venía de 2026, migrar asignaciones iniciales a 2027
+        return {
+          ...parsed,
+          2027: parsed[2026] || { 1: DEFAULT_ASSIGNMENTS_ENERO_2027 },
+        };
       } catch (e) {
         // Fallback
       }
     }
     return {
-      2026: {
-        1: DEFAULT_ASSIGNMENTS_ENERO_2026,
+      2027: {
+        1: DEFAULT_ASSIGNMENTS_ENERO_2027,
       },
     };
   });
@@ -101,7 +109,15 @@ export default function App() {
 
   const [customHolidays, setCustomHolidays] = useState<Record<string, string>>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.HOLIDAYS);
-    return saved ? JSON.parse(saved) : SPANISH_HOLIDAYS_2026;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return { ...ALAVA_HOLIDAYS_2027, ...parsed };
+      } catch {
+        return ALAVA_HOLIDAYS_2027;
+      }
+    }
+    return ALAVA_HOLIDAYS_2027;
   });
 
   const [notes, setNotes] = useState<string>(() => {
@@ -186,12 +202,13 @@ export default function App() {
         days,
         shifts,
         convenio,
-        annualHours
+        annualHours,
+        customHolidays
       );
       map.set(emp.id, stats);
     });
     return map;
-  }, [employees, currentMonthAssignments, days, shifts, convenio, year, yearAssignmentsMap]);
+  }, [employees, currentMonthAssignments, days, shifts, convenio, year, yearAssignmentsMap, customHolidays]);
 
   // Daily coverage sum
   const coverage = useMemo(
@@ -298,17 +315,17 @@ export default function App() {
   };
 
   const handleExecuteResetToDemo = () => {
-    setYear(2026);
+    setYear(2027);
     setMonth(1);
     setEmployees(DEFAULT_EMPLOYEES);
     setShifts(DEFAULT_SHIFTS);
     setYearAssignmentsMap({
-      2026: {
-        1: DEFAULT_ASSIGNMENTS_ENERO_2026,
+      2027: {
+        1: DEFAULT_ASSIGNMENTS_ENERO_2027,
       },
     });
     setConvenio(DEFAULT_CONVENIO);
-    setCustomHolidays(SPANISH_HOLIDAYS_2026);
+    setCustomHolidays(ALAVA_HOLIDAYS_2027);
     setNotes(
       'GASTEIZ DE VIGILANCIA - NOTAS Y COMENTARIOS:\nA= 19.00 – 08.00 (13h)   B= 08.00 – 20.00 (12h)   C= 20.00 – 08.00 (12h)\nServicio ininterrumpido 24h. Los sábados, domingos y festivos devengan plus de festividad.'
     );
@@ -328,6 +345,25 @@ export default function App() {
   };
 
   const currentBackupData: QuadrantBackupData = useMemo(() => {
+    // Garantizar que todos los 12 meses (1 a 12) del año estén formalmente estructurados
+    const completeYearAssignments: Record<number, Record<number, Record<string, Record<number, string>>>> = {
+      ...yearAssignmentsMap,
+    };
+
+    const currentYearMonths = { ...(completeYearAssignments[year] || {}) };
+    for (let m = 1; m <= 12; m++) {
+      if (!currentYearMonths[m]) {
+        currentYearMonths[m] = {};
+      }
+    }
+    completeYearAssignments[year] = currentYearMonths;
+
+    // Mapa explícito con los 12 meses del año actual para acceso directo
+    const allMonths: Record<number, Record<string, Record<number, string>>> = {};
+    for (let m = 1; m <= 12; m++) {
+      allMonths[m] = currentYearMonths[m] || {};
+    }
+
     return {
       app: 'CuadrantePro - Gasteiz de Vigilancia',
       version: '2.0.0',
@@ -337,10 +373,11 @@ export default function App() {
       month,
       employees,
       shifts,
-      yearAssignmentsMap,
       convenio,
       customHolidays,
       notes,
+      yearAssignmentsMap: completeYearAssignments,
+      allMonths,
     };
   }, [
     serviceName,
@@ -360,9 +397,28 @@ export default function App() {
     if (data.month) setMonth(data.month);
     if (data.employees && Array.isArray(data.employees)) setEmployees(data.employees);
     if (data.shifts && Array.isArray(data.shifts)) setShifts(data.shifts);
-    if (data.yearAssignmentsMap) {
+
+    // Restaurar los 12 meses completos del cuadrante
+    if (data.yearAssignmentsMap && typeof data.yearAssignmentsMap === 'object') {
       setYearAssignmentsMap(data.yearAssignmentsMap);
+    } else if (data.allMonths && typeof data.allMonths === 'object') {
+      const yr = data.year || year;
+      setYearAssignmentsMap(prev => ({
+        ...prev,
+        [yr]: data.allMonths!,
+      }));
+    } else if ((data as any).assignments) {
+      const yr = data.year || year;
+      const mo = data.month || month;
+      setYearAssignmentsMap(prev => ({
+        ...prev,
+        [yr]: {
+          ...(prev[yr] || {}),
+          [mo]: (data as any).assignments,
+        },
+      }));
     }
+
     if (data.convenio) setConvenio(data.convenio);
     if (data.customHolidays) setCustomHolidays(data.customHolidays);
     if (typeof data.notes === 'string') setNotes(data.notes);
@@ -380,20 +436,6 @@ export default function App() {
       coverage,
       shifts,
       convenio
-    );
-  };
-
-  const handleExportCSV = () => {
-    exportQuadrantToCSV(
-      year,
-      month,
-      serviceName,
-      days,
-      employees,
-      currentMonthAssignments,
-      statsMap,
-      coverage,
-      shifts
     );
   };
 
@@ -427,8 +469,6 @@ export default function App() {
           setIsEmployeeModalOpen(true);
         }}
         onExportPDF={handleExportPDF}
-        onExportCSV={handleExportCSV}
-        onResetToDemo={() => setIsResetConfirmOpen(true)}
       />
 
       {isMobileView ? (
@@ -620,7 +660,7 @@ export default function App() {
       <ConfirmModal
         isOpen={isResetConfirmOpen}
         title="Restaurar Cuadrante Original"
-        message="¿Estás seguro de que deseas restablecer los datos de ejemplo del Excel de Enero 2026 (Amador, Roberto, Gabriel, VS4)? Se sobreescribirán los cambios de este mes."
+        message="¿Estás seguro de que deseas restablecer los datos de ejemplo del Excel de Enero 2027 (Amador, Roberto, Gabriel, VS4)? Se sobreescribirán los cambios de este mes."
         confirmLabel="Sí, restaurar plantilla"
         cancelLabel="Cancelar"
         onCancel={() => setIsResetConfirmOpen(false)}

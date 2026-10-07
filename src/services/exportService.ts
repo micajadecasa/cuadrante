@@ -62,7 +62,6 @@ export function exportQuadrantToCSV(
   rows.push([`GASTEIZ DE VIGILANCIA - CUADRANTE OFICIAL DE SERVICIO`]);
   rows.push([`Puesto / Servicio: ${serviceName.toUpperCase()}`]);
   rows.push([`Mes: ${monthName} ${year}`]);
-  rows.push([`Cómputo Anual: 1 de Enero al 31 de Diciembre incluidos`]);
   rows.push([]);
 
   // Legend

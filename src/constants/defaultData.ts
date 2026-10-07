@@ -157,8 +157,8 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
   },
 ];
 
-// Prepopulated assignments exactly matching the user's uploaded spreadsheet for enero 2026
-export const DEFAULT_ASSIGNMENTS_ENERO_2026: Record<string, Record<number, string>> = {
+// Prepopulated assignments for enero 2027
+export const DEFAULT_ASSIGNMENTS_ENERO_2027: Record<string, Record<number, string>> = {
   emp_1: {
     3: 'B',
     4: 'B',
@@ -210,6 +210,7 @@ export const DEFAULT_ASSIGNMENTS_ENERO_2026: Record<string, Record<number, strin
     6: 'B',
   },
 };
+export const DEFAULT_ASSIGNMENTS_ENERO_2026 = DEFAULT_ASSIGNMENTS_ENERO_2027;
 
 export const DEFAULT_CONVENIO: ConvenioSettings = {
   name: 'Convenio de Seguridad Privada - Gasteiz de Vigilancia',
@@ -249,17 +250,26 @@ export const DEFAULT_CONVENIO: ConvenioSettings = {
   ],
 };
 
-// Official National Holidays in Spain for 2026 (plus common regional)
-export const SPANISH_HOLIDAYS_2026: Record<string, string> = {
-  '2026-01-01': 'Año Nuevo',
-  '2026-01-06': 'Epifanía del Señor / Reyes Magos',
-  '2026-04-02': 'Jueves Santo',
-  '2026-04-03': 'Viernes Santo',
-  '2026-05-01': 'Fiesta del Trabajo',
-  '2026-08-15': 'Asunción de la Virgen',
-  '2026-10-12': 'Fiesta Nacional de España',
-  '2026-11-01': 'Todos los Santos',
-  '2026-12-06': 'Día de la Constitución',
-  '2026-12-08': 'Inmaculada Concepción',
-  '2026-12-25': 'Natividad del Señor / Navidad',
+// Días Festivos Oficiales de Álava / Vitoria-Gasteiz para 2027
+export const ALAVA_HOLIDAYS_2027: Record<string, string> = {
+  '2027-01-01': 'Año Nuevo',
+  '2027-01-06': 'Reyes Magos',
+  '2027-03-25': 'Jueves Santo',
+  '2027-03-26': 'Viernes Santo',
+  '2027-03-29': 'Lunes de Pascua',
+  '2027-04-28': 'San Prudencio (Fiesta de Álava)',
+  '2027-05-01': 'Fiesta del Trabajo',
+  '2027-07-25': 'Santiago Apóstol',
+  '2027-08-05': 'La Virgen Blanca (Fiesta Vitoria-Gasteiz/Álava)',
+  '2027-08-15': 'Asunción de la Virgen',
+  '2027-10-12': 'Fiesta Nacional de España',
+  '2027-10-25': 'Día del País Vasco (Euskadi Eguna)',
+  '2027-11-01': 'Todos los Santos',
+  '2027-12-06': 'Día de la Constitución',
+  '2027-12-08': 'Inmaculada Concepción',
+  '2027-12-25': 'Natividad del Señor',
 };
+
+// Retrocompatibilidad con referencias anteriores
+export const ALAVA_HOLIDAYS_2026: Record<string, string> = ALAVA_HOLIDAYS_2027;
+export const SPANISH_HOLIDAYS_2026: Record<string, string> = ALAVA_HOLIDAYS_2027;

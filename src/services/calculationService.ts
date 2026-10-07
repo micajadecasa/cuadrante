@@ -5,7 +5,7 @@ import {
   EmployeeMonthStats,
   ShiftType,
 } from '../types/quadrant';
-import { SPANISH_HOLIDAYS_2026 } from '../constants/defaultData';
+import { ALAVA_HOLIDAYS_2027 } from '../constants/defaultData';
 
 const DAY_NAMES = ['D', 'L', 'M', 'X', 'J', 'V', 'S']; // JavaScript getDay(): 0 is Sunday
 
@@ -16,7 +16,7 @@ export function getDaysInMonth(
 ): DayInfo[] {
   const days: DayInfo[] = [];
   const daysCount = new Date(year, month, 0).getDate(); // month is 1-12
-  const holidays = customHolidays || SPANISH_HOLIDAYS_2026;
+  const holidays = customHolidays || ALAVA_HOLIDAYS_2027;
 
   for (let d = 1; d <= daysCount; d++) {
     const date = new Date(year, month - 1, d);
@@ -53,6 +53,139 @@ export function isFestiveDay(day: DayInfo, convenio: ConvenioSettings): boolean 
     return true;
   }
   return false;
+}
+
+/**
+ * Convierte un formato de hora "HH:MM" o "H:MM" a minutos transcurridos desde las 00:00.
+ */
+export function parseTimeToMinutes(timeStr: string | undefined): number | null {
+  if (!timeStr || typeof timeStr !== 'string') return null;
+  const parts = timeStr.trim().split(':');
+  if (parts.length < 2) return null;
+  const hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+  if (isNaN(hours) || isNaN(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+/**
+ * Determina si una fecha concreta es festiva (Domingo, festivo oficial o Sábado según convenio).
+ */
+export function isFestiveDate(
+  date: Date,
+  convenio: ConvenioSettings,
+  customHolidays?: Record<string, string>
+): boolean {
+  const dayOfWeek = date.getDay(); // 0 es Domingo, 6 es Sábado
+  if (dayOfWeek === 0) return true;
+  if (convenio.saturdaysCountAsHoliday && dayOfWeek === 6) return true;
+
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const dateString = `${y}-${m}-${d}`;
+
+  const holidays = customHolidays || ALAVA_HOLIDAYS_2027;
+  return Boolean(holidays[dateString]);
+}
+
+/**
+ * Calcula las horas festivas de un turno específico asignado a un día del cuadrante,
+ * aplicando las reglas laborales del sector:
+ * 
+ * 1. Las horas festivas son SOLO las que caen dentro del día festivo (00:00–24:00).
+ * 2. Turno empieza antes del festivo → solo festivas las horas después de 00:00.
+ * 3. Turno empieza en el festivo → festivas hasta las 24:00.
+ * 4. Turno cruza el festivo → dividir en dos partes (normal + festivo).
+ * 5. Turno dentro del festivo → todas festivas.
+ * 6. Turno fuera del festivo → ninguna festiva.
+ */
+export function calculateShiftHolidayHours(
+  shift: ShiftType,
+  dayIndex: number,
+  days: DayInfo[],
+  convenio: ConvenioSettings,
+  customHolidays?: Record<string, string>
+): number {
+  if (shift.isOffDay || shift.totalHours <= 0) {
+    return 0;
+  }
+
+  const currentDay = days[dayIndex];
+  if (!currentDay) {
+    return 0;
+  }
+
+  const isCurrentDayFestive = isFestiveDay(currentDay, convenio);
+
+  const startMin = parseTimeToMinutes(shift.startTime);
+  const endMin = parseTimeToMinutes(shift.endTime);
+
+  // Si no hay horarios definidos o están vacíos, se asume que todo el turno transcurre en el día asignado
+  if (startMin === null || endMin === null) {
+    return isCurrentDayFestive ? shift.totalHours : 0;
+  }
+
+  // Comprobar si el turno cruza la medianoche (termina al día siguiente)
+  const crossesMidnight =
+    endMin <= startMin && shift.totalHours > 0 && !(startMin === endMin && shift.totalHours === 0);
+
+  if (!crossesMidnight) {
+    // El turno no cruza medianoche: transcurre 100% dentro del día actual (00:00 - 24:00)
+    // - Turno dentro del festivo → todas festivas
+    // - Turno fuera del festivo → ninguna festiva
+    return isCurrentDayFestive ? shift.totalHours : 0;
+  }
+
+  // El turno cruza la medianoche:
+  // Parte 1 (en el día de inicio): Desde startTime hasta las 24:00 (1440 min)
+  const minutesPart1 = 1440 - startMin; // e.g. 19:00 -> 1440 - 1140 = 300 min (5h)
+  // Parte 2 (en el día siguiente): Desde las 00:00 hasta endTime
+  const minutesPart2 = endMin;          // e.g. 08:00 -> 480 min (8h)
+
+  const totalScheduledMinutes = minutesPart1 + minutesPart2;
+
+  let hoursPart1: number;
+  let hoursPart2: number;
+
+  if (
+    totalScheduledMinutes > 0 &&
+    Math.abs(totalScheduledMinutes / 60 - shift.totalHours) > 0.01
+  ) {
+    // Si shift.totalHours difiere ligeramente por descansos no retribuidos, repartir proporcionalmente
+    hoursPart1 = (minutesPart1 / totalScheduledMinutes) * shift.totalHours;
+    hoursPart2 = (minutesPart2 / totalScheduledMinutes) * shift.totalHours;
+  } else {
+    hoursPart1 = minutesPart1 / 60;
+    hoursPart2 = minutesPart2 / 60;
+  }
+
+  // Determinar si el día siguiente es festivo
+  let isNextDayFestive = false;
+  if (dayIndex + 1 < days.length) {
+    isNextDayFestive = isFestiveDay(days[dayIndex + 1], convenio);
+  } else {
+    // Fin de mes: calcular si el día 1 del siguiente mes es festivo
+    const [y, m, d] = currentDay.dateString.split('-').map(Number);
+    const nextDate = new Date(y, m - 1, d + 1);
+    isNextDayFestive = isFestiveDate(nextDate, convenio, customHolidays);
+  }
+
+  // Aplicación de reglas:
+  // - Turno empieza antes del festivo -> solo festivas las horas después de 00:00 (hoursPart2)
+  // - Turno empieza en el festivo -> festivas hasta las 24:00 (hoursPart1)
+  // - Turno cruza el festivo -> dividir en dos partes (normal + festivo)
+  // - Turno dentro del festivo (ambos festivos) -> todas festivas (hoursPart1 + hoursPart2 = totalHours)
+  // - Turno fuera del festivo (ninguno festivo) -> ninguna festiva (0)
+  let festiveHours = 0;
+  if (isCurrentDayFestive) {
+    festiveHours += hoursPart1;
+  }
+  if (isNextDayFestive) {
+    festiveHours += hoursPart2;
+  }
+
+  return Math.round(festiveHours * 100) / 100;
 }
 
 /**
@@ -93,7 +226,8 @@ export function calculateEmployeeStats(
   days: DayInfo[],
   shifts: ShiftType[],
   convenio: ConvenioSettings,
-  annualTotalHoursCalculated?: number
+  annualTotalHoursCalculated?: number,
+  customHolidays?: Record<string, string>
 ): EmployeeMonthStats {
   const shiftMap = new Map<string, ShiftType>();
   shifts.forEach(s => shiftMap.set(s.code, s));
@@ -104,7 +238,7 @@ export function calculateEmployeeStats(
   let holidayHours = 0;
 
   if (assignments) {
-    days.forEach(day => {
+    days.forEach((day, index) => {
       const code = assignments[day.dayOfMonth];
       if (!code) return;
 
@@ -115,12 +249,19 @@ export function calculateEmployeeStats(
       totalHours += shift.totalHours;
       nightHours += shift.nightHours;
 
-      // Festivo si es Domingo, Festivo nacional/local o Sábado (convenio)
-      if (isFestiveDay(day, convenio)) {
-        holidayHours += shift.totalHours;
-      }
+      // Horas festivas según las reglas estrictas (solo horas dentro de 00:00 - 24:00 del festivo)
+      const shiftHoliday = calculateShiftHolidayHours(
+        shift,
+        index,
+        days,
+        convenio,
+        customHolidays
+      );
+      holidayHours += shiftHoliday;
     });
   }
+
+  holidayHours = Math.round(holidayHours * 100) / 100;
 
   const overtimeHours = Math.max(0, totalHours - convenio.monthlyStandardHours);
   const regularHours = Math.min(totalHours, convenio.monthlyStandardHours);

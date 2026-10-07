@@ -23,6 +23,7 @@ import {
   generateICSContent,
 } from '../services/calendarService';
 import { sendLocalPushNotification } from '../services/notificationService';
+import { calculateShiftHolidayHours } from '../services/calculationService';
 
 interface WorkerMobileViewProps {
   days: DayInfo[];
@@ -311,7 +312,7 @@ export const WorkerMobileView: React.FC<WorkerMobileViewProps> = ({
           </h3>
 
           <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-            {days.map(day => {
+            {days.map((day, idx) => {
               const code = empAssigns[day.dayOfMonth];
               const shift = code ? shiftMap.get(code) : undefined;
               const isWorking = shift && !shift.isOffDay;
@@ -319,6 +320,10 @@ export const WorkerMobileView: React.FC<WorkerMobileViewProps> = ({
                 day.isHoliday ||
                 day.isSunday ||
                 (convenio.saturdaysCountAsHoliday && day.isSaturday);
+              const shiftHolidayHours =
+                shift && isWorking
+                  ? calculateShiftHolidayHours(shift, idx, days, convenio)
+                  : 0;
 
               return (
                 <div
@@ -362,6 +367,7 @@ export const WorkerMobileView: React.FC<WorkerMobileViewProps> = ({
                         <div className="text-[10px] text-slate-500">
                           {shift?.startTime} - {shift?.endTime} ({shift?.totalHours}h)
                           {shift?.nightHours ? ` • ${shift.nightHours}h noche` : ''}
+                          {shiftHolidayHours > 0 ? ` • ${shiftHolidayHours}h festiva` : ''}
                         </div>
                       )}
                     </div>

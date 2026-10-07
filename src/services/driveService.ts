@@ -15,6 +15,7 @@ export interface QuadrantBackupData {
   employees: Employee[];
   shifts: ShiftType[];
   yearAssignmentsMap: Record<number, Record<number, Record<string, Record<number, string>>>>;
+  allMonths?: Record<number, Record<string, Record<number, string>>>;
   convenio: ConvenioSettings;
   customHolidays: Record<string, string>;
   notes: string;
@@ -28,11 +29,13 @@ export interface DriveFileInfo {
 }
 
 /**
- * Descarga local del archivo de respaldo en formato JSON estructurado
+ * Descarga local del archivo de respaldo en formato JSON con toda la configuración y los 12 meses
  */
 export function downloadLocalBackup(data: QuadrantBackupData, filename?: string) {
   const dateStr = new Date().toISOString().split('T')[0];
-  const defaultName = filename || `Cuadrante_Gasteiz_Backup_${data.year}_M${data.month}_${dateStr}.json`;
+  const defaultName =
+    filename ||
+    `Cuadrante_Gasteiz_${data.serviceName.replace(/\s+/g, '_')}_Configuracion_Completa_${data.year}_${dateStr}.json`;
   const jsonContent = JSON.stringify(data, null, 2);
 
   const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
@@ -47,7 +50,7 @@ export function downloadLocalBackup(data: QuadrantBackupData, filename?: string)
 }
 
 /**
- * Lee y valida un archivo JSON subido por el usuario
+ * Lee y valida un archivo JSON subido por el usuario con la configuración completa
  */
 export async function readBackupFile(file: File): Promise<QuadrantBackupData> {
   return new Promise((resolve, reject) => {
@@ -64,14 +67,21 @@ export async function readBackupFile(file: File): Promise<QuadrantBackupData> {
         if (!parsed.shifts || !Array.isArray(parsed.shifts)) {
           throw new Error('El archivo no contiene un catálogo válido de turnos.');
         }
-        if (!parsed.yearAssignmentsMap && !parsed.assignments) {
+        if (!parsed.yearAssignmentsMap && !parsed.allMonths && !parsed.assignments) {
           throw new Error('El archivo no contiene asignaciones de cuadrante.');
+        }
+
+        // Si viene allMonths pero no yearAssignmentsMap
+        if (!parsed.yearAssignmentsMap && parsed.allMonths) {
+          parsed.yearAssignmentsMap = {
+            [parsed.year || 2027]: parsed.allMonths,
+          };
         }
 
         // Compatibilidad con versiones que guardaban assignments en vez de yearAssignmentsMap
         if (!parsed.yearAssignmentsMap && parsed.assignments) {
           parsed.yearAssignmentsMap = {
-            [parsed.year || 2026]: {
+            [parsed.year || 2027]: {
               [parsed.month || 1]: parsed.assignments,
             },
           };
@@ -100,12 +110,14 @@ export async function uploadBackupToGoogleDrive(
   }
 
   const dateStr = new Date().toISOString().split('T')[0];
-  const name = filename || `Cuadrante_Gasteiz_${data.serviceName.replace(/\s+/g, '_')}_${data.year}_M${data.month}_${dateStr}.json`;
+  const name =
+    filename ||
+    `Cuadrante_Gasteiz_${data.serviceName.replace(/\s+/g, '_')}_Configuracion_Completa_${data.year}_${dateStr}.json`;
 
   const metadata = {
     name,
     mimeType: 'application/json',
-    description: `Copia de seguridad completa de CuadrantePro - Gasteiz de Vigilancia creada el ${new Date().toLocaleString('es-ES')}`,
+    description: `Copia de seguridad completa anual de CuadrantePro - Gasteiz de Vigilancia creada el ${new Date().toLocaleString('es-ES')}`,
   };
 
   const fileContent = JSON.stringify(data, null, 2);

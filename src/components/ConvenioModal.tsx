@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ConvenioSettings, EconomicRateConcept } from '../types/quadrant';
+import { ALAVA_HOLIDAYS_2027 } from '../constants/defaultData';
 import {
   Sliders,
   Plus,
@@ -32,7 +33,7 @@ export const ConvenioModal: React.FC<ConvenioModalProps> = ({
   const [holidays, setHolidays] = useState<Record<string, string>>({
     ...customHolidays,
   });
-  const [newHolidayDate, setNewHolidayDate] = useState('2026-05-15');
+  const [newHolidayDate, setNewHolidayDate] = useState('2027-05-15');
   const [newHolidayName, setNewHolidayName] = useState('Fiesta Local / Patrón');
 
   // New Custom Rate form
@@ -220,7 +221,7 @@ export const ConvenioModal: React.FC<ConvenioModalProps> = ({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 pt-1">
+            <div className="flex flex-col gap-2 pt-1">
               <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-slate-200">
                 <input
                   type="checkbox"
@@ -237,6 +238,10 @@ export const ConvenioModal: React.FC<ConvenioModalProps> = ({
                   Los Sábados se consideran Festivos (junto a Domingos y Festivos oficiales)
                 </span>
               </label>
+
+              <div className="bg-amber-50/80 border border-amber-200/80 rounded-lg p-2.5 text-[11px] text-amber-900 leading-relaxed">
+                <span className="font-bold">Cómputo estricto de horas festivas (00:00 a 24:00):</span> Son festivas únicamente las horas que caen dentro del día festivo. Si un turno cruza la medianoche (antes o después de festivo), se divide automáticamente en horas normales y festivas.
+              </div>
             </div>
           </div>
 
@@ -443,11 +448,21 @@ export const ConvenioModal: React.FC<ConvenioModalProps> = ({
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <Calendar className="w-4 h-4 text-red-600" />
-                Calendario de Días Festivos
+                Calendario de Días Festivos (Álava / Vitoria-Gasteiz)
               </span>
-              <span className="text-[11px] text-slate-500 font-normal">
-                {Object.keys(holidays).length} festivos configurados
-              </span>
+              <div className="flex items-center gap-2.5">
+                <span className="text-[11px] text-slate-500 font-normal">
+                  {Object.keys(holidays).length} festivos
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setHolidays(ALAVA_HOLIDAYS_2027)}
+                  className="px-2 py-0.5 rounded text-[11px] font-bold text-blue-700 bg-blue-100/70 hover:bg-blue-200 transition cursor-pointer"
+                  title="Cargar los 16 días festivos oficiales de Álava para 2027"
+                >
+                  Restablecer Festivos Álava (2027)
+                </button>
+              </div>
             </h4>
 
             {/* Add Holiday Form */}

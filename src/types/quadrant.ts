@@ -27,7 +27,7 @@ export interface DayInfo {
   dayOfMonth: number;
   dayOfWeek: number; // 0 = Sunday, 1 = Monday, ... 6 = Saturday
   dayOfWeekName: string; // "L", "M", "X", "J", "V", "S", "D"
-  dateString: string; // "2026-01-01"
+  dateString: string; // "2027-01-01"
   isSunday: boolean;
   isSaturday: boolean;
   isHoliday: boolean;

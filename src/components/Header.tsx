@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   Calendar,
-  FileSpreadsheet,
   FileText,
   Sliders,
   Smartphone,
@@ -35,8 +34,6 @@ interface HeaderProps {
   onOpenNotifications: () => void;
   onOpenAddEmployee: () => void;
   onExportPDF: () => void;
-  onExportCSV: () => void;
-  onResetToDemo: () => void;
 }
 
 const MONTH_NAMES_ES = [
@@ -62,8 +59,6 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenNotifications,
   onOpenAddEmployee,
   onExportPDF,
-  onExportCSV,
-  onResetToDemo,
 }) => {
   const handlePrevMonth = () => {
     if (month === 1) {
@@ -139,7 +134,7 @@ export const Header: React.FC<HeaderProps> = ({
               onChange={e => onYearChange(Number(e.target.value))}
               className="bg-transparent text-sm font-semibold text-blue-400 focus:outline-none cursor-pointer"
             >
-              {[2025, 2026, 2027, 2028].map(y => (
+              {[2027, 2028, 2029, 2030].map(y => (
                 <option key={y} value={y} className="bg-slate-900 text-white">
                   {y}
                 </option>
@@ -213,16 +208,6 @@ export const Header: React.FC<HeaderProps> = ({
             <span>PDF</span>
           </button>
 
-          {/* Export CSV / Excel */}
-          <button
-            onClick={onExportCSV}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-teal-600 hover:bg-teal-500 text-white transition shadow-sm cursor-pointer"
-            title="Descargar para Microsoft Excel (CSV)"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span>Excel / CSV</span>
-          </button>
-
           {/* Google Calendar sync */}
           <button
             onClick={onOpenGoogleSync}
@@ -273,11 +258,12 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden lg:inline">+ Vigilante</span>
           </button>
 
-          {/* Demo restore */}
+          {/* Icon to clear/reset the current month's quadrant */}
           <button
-            onClick={onResetToDemo}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
-            title="Restaurar datos originales de Enero 2026"
+            type="button"
+            onClick={onResetCurrentMonth}
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 border border-slate-700 transition cursor-pointer"
+            title={`Limpiar todos los turnos del mes en curso (${MONTH_NAMES_ES[month - 1]} ${year})`}
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
