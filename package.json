@@ -1,5 +1,6 @@
 {
-  "name": "react-example",
+  "name": "cuadrante-gasteiz-vigilancia",
+  "description": "Sistema de gestión de cuadrantes y nóminas para Gasteiz de Vigilancia",
   "private": true,
   "version": "0.0.0",
   "type": "module",
