@@ -42,8 +42,8 @@ export const ShiftPalette: React.FC<ShiftPaletteProps> = ({
   const [formName, setFormName] = useState('');
   const [formStart, setFormStart] = useState('06:00');
   const [formEnd, setFormEnd] = useState('18:00');
-  const [formTotalHours, setFormTotalHours] = useState(12);
-  const [formNightHours, setFormNightHours] = useState(0);
+  const [formTotalHours, setFormTotalHours] = useState<number | string>(12);
+  const [formNightHours, setFormNightHours] = useState<number | string>(0);
   const [formColor, setFormColor] = useState('#0284c7');
   const [formIsOffDay, setFormIsOffDay] = useState(false);
 
@@ -100,15 +100,29 @@ export const ShiftPalette: React.FC<ShiftPaletteProps> = ({
     e.preventDefault();
     if (!formCode.trim()) return;
 
+    const parsedTotal = typeof formTotalHours === 'string'
+      ? parseFloat(formTotalHours.replace(',', '.'))
+      : Number(formTotalHours);
+    const parsedNight = typeof formNightHours === 'string'
+      ? parseFloat(formNightHours.replace(',', '.'))
+      : Number(formNightHours);
+
+    const validTotalHours = isNaN(parsedTotal) ? 0 : Math.round(parsedTotal * 100) / 100;
+    const validNightHours = isNaN(parsedNight) ? 0 : Math.round(parsedNight * 100) / 100;
+
+    const isVacation = formCode.trim().toUpperCase() === 'V';
+    // Si es día libre pero no vacaciones y el usuario puso 0, es 0; si puso 5.22, se preserva
+    const resolvedTotal = formIsOffDay && !isVacation && validTotalHours === 0 ? 0 : validTotalHours;
+
     if (editingShift) {
       const updated: ShiftType = {
         ...editingShift,
         code: formCode.trim().toUpperCase(),
         name: formName.trim() || `Turno ${formCode.toUpperCase()}`,
-        startTime: formStart,
-        endTime: formEnd,
-        totalHours: formIsOffDay ? 0 : Number(formTotalHours),
-        nightHours: formIsOffDay ? 0 : Number(formNightHours),
+        startTime: formIsOffDay ? '00:00' : formStart,
+        endTime: formIsOffDay ? '00:00' : formEnd,
+        totalHours: resolvedTotal,
+        nightHours: formIsOffDay ? 0 : validNightHours,
         color: formColor,
         isOffDay: formIsOffDay,
       };
@@ -118,10 +132,10 @@ export const ShiftPalette: React.FC<ShiftPaletteProps> = ({
         id: `shift_${Date.now()}`,
         code: formCode.trim().toUpperCase(),
         name: formName.trim() || `Turno ${formCode.toUpperCase()}`,
-        startTime: formStart,
-        endTime: formEnd,
-        totalHours: formIsOffDay ? 0 : Number(formTotalHours),
-        nightHours: formIsOffDay ? 0 : Number(formNightHours),
+        startTime: formIsOffDay ? '00:00' : formStart,
+        endTime: formIsOffDay ? '00:00' : formEnd,
+        totalHours: resolvedTotal,
+        nightHours: formIsOffDay ? 0 : validNightHours,
         color: formColor,
         textColor: '#FFFFFF',
         isOffDay: formIsOffDay,
@@ -176,13 +190,17 @@ export const ShiftPalette: React.FC<ShiftPaletteProps> = ({
 
                 {/* Details */}
                 <span className="font-medium text-xs">
-                  {shift.isOffDay ? (
+                  {shift.isOffDay && (!shift.totalHours || shift.totalHours <= 0) ? (
                     shift.name
                   ) : (
                     <>
-                      <span className="font-mono text-[11px] text-slate-600 group-hover:text-slate-900">
-                        {shift.startTime}-{shift.endTime}
-                      </span>
+                      {shift.startTime && shift.startTime !== '00:00' ? (
+                        <span className="font-mono text-[11px] text-slate-600 group-hover:text-slate-900">
+                          {shift.startTime}-{shift.endTime}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-slate-700 font-semibold">{shift.name}</span>
+                      )}
                       <span className="ml-1 text-[10px] font-bold text-slate-500">
                         ({shift.totalHours}h)
                       </span>
@@ -341,78 +359,93 @@ export const ShiftPalette: React.FC<ShiftPaletteProps> = ({
                 />
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="formIsOffDay"
-                  checked={formIsOffDay}
-                  onChange={e => setFormIsOffDay(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded"
-                />
-                <label htmlFor="formIsOffDay" className="text-xs font-medium text-slate-700 cursor-pointer">
-                  Es día libre / descanso / ausencia (0 horas trabajadas)
-                </label>
+              <div className="flex flex-col gap-1.5 pt-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="formIsOffDay"
+                    checked={formIsOffDay}
+                    onChange={e => {
+                      const checked = e.target.checked;
+                      setFormIsOffDay(checked);
+                      if (checked && formCode.trim().toUpperCase() !== 'V') {
+                        setFormTotalHours(0);
+                      } else if (checked && formCode.trim().toUpperCase() === 'V' && (!formTotalHours || Number(formTotalHours) === 0)) {
+                        setFormTotalHours(5.22);
+                      }
+                    }}
+                    className="w-4 h-4 text-blue-600 rounded cursor-pointer"
+                  />
+                  <label htmlFor="formIsOffDay" className="text-xs font-medium text-slate-700 cursor-pointer">
+                    Es día libre / descanso / vacaciones / ausencia
+                  </label>
+                </div>
+                {formIsOffDay && (
+                  <p className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 leading-relaxed">
+                    <strong>Cómputo:</strong> Los descansos computan 0h. Para <strong>Vacaciones (V)</strong> retribuidas, introduce <strong>5,22h</strong> en "Total Horas" para que sumen al total mensual del trabajador sin añadirse a la cobertura diaria presencial (H/DÍA) del puesto.
+                  </p>
+                )}
               </div>
 
               {!formIsOffDay && (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Hora Inicio
-                      </label>
-                      <input
-                        type="time"
-                        value={formStart}
-                        onChange={e => setFormStart(e.target.value)}
-                        className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Hora Fin
-                      </label>
-                      <input
-                        type="time"
-                        value={formEnd}
-                        onChange={e => setFormEnd(e.target.value)}
-                        className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-mono"
-                      />
-                    </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Hora Inicio
+                    </label>
+                    <input
+                      type="time"
+                      value={formStart}
+                      onChange={e => setFormStart(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-mono"
+                    />
                   </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Total Horas
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={24}
-                        step={0.5}
-                        value={formTotalHours}
-                        onChange={e => setFormTotalHours(Number(e.target.value))}
-                        className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-semibold"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Horas Nocturnas (22-06h)
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={12}
-                        step={0.5}
-                        value={formNightHours}
-                        onChange={e => setFormNightHours(Number(e.target.value))}
-                        className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-semibold"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Hora Fin
+                    </label>
+                    <input
+                      type="time"
+                      value={formEnd}
+                      onChange={e => setFormEnd(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-mono"
+                    />
                   </div>
-                </>
+                </div>
               )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Total Horas {formIsOffDay && '(ej. 5,22 para Vacaciones)'}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={formTotalHours}
+                    onChange={e => setFormTotalHours(e.target.value)}
+                    className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-semibold"
+                    placeholder="ej. 8 o 5,22"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">
+                    Permite valores decimales como 5,22
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Horas Nocturnas (22-06h)
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={formNightHours}
+                    onChange={e => setFormNightHours(e.target.value)}
+                    disabled={formIsOffDay}
+                    className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-semibold disabled:bg-slate-100 disabled:text-slate-400"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
 
               <div className="flex justify-end gap-2 pt-3">
                 <button

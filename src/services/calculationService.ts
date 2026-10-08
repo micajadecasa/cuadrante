@@ -107,7 +107,7 @@ export function calculateShiftHolidayHours(
   convenio: ConvenioSettings,
   customHolidays?: Record<string, string>
 ): number {
-  if (shift.isOffDay || shift.totalHours <= 0) {
+  if (shift.isOffDay || shift.code === 'V' || shift.code === 'BAJA' || shift.totalHours <= 0) {
     return 0;
   }
 
@@ -210,14 +210,17 @@ export function calculateAnnualHoursForEmployee(
       Object.values(monthAssigns).forEach(code => {
         if (!code) return;
         const shift = shiftMap.get(code);
-        if (shift && !shift.isOffDay && shift.totalHours > 0) {
-          totalAnnual += shift.totalHours;
+        if (shift && shift.totalHours > 0) {
+          // Suma turnos de trabajo y vacaciones retribuidas (ej. 5.22h)
+          if (!shift.isOffDay || shift.code === 'V') {
+            totalAnnual += shift.totalHours;
+          }
         }
       });
     }
   }
 
-  return totalAnnual;
+  return Math.round(totalAnnual * 100) / 100;
 }
 
 export function calculateEmployeeStats(
@@ -243,27 +246,33 @@ export function calculateEmployeeStats(
       if (!code) return;
 
       const shift = shiftMap.get(code);
-      if (!shift || shift.isOffDay || shift.totalHours <= 0) return;
+      if (!shift || shift.totalHours <= 0) return;
+      // Días libres estándar (L) sin horas remuneradas se descartan
+      if (shift.isOffDay && shift.code !== 'V') return;
 
       workedDays++;
       totalHours += shift.totalHours;
       nightHours += shift.nightHours;
 
-      // Horas festivas según las reglas estrictas (solo horas dentro de 00:00 - 24:00 del festivo)
-      const shiftHoliday = calculateShiftHolidayHours(
-        shift,
-        index,
-        days,
-        convenio,
-        customHolidays
-      );
-      holidayHours += shiftHoliday;
+      // Horas festivas según las reglas estrictas (las vacaciones no devengan plus festivo)
+      if (shift.code !== 'V' && shift.code !== 'BAJA' && !shift.isOffDay) {
+        const shiftHoliday = calculateShiftHolidayHours(
+          shift,
+          index,
+          days,
+          convenio,
+          customHolidays
+        );
+        holidayHours += shiftHoliday;
+      }
     });
   }
 
+  totalHours = Math.round(totalHours * 100) / 100;
+  nightHours = Math.round(nightHours * 100) / 100;
   holidayHours = Math.round(holidayHours * 100) / 100;
 
-  const overtimeHours = Math.max(0, totalHours - convenio.monthlyStandardHours);
+  const overtimeHours = Math.max(0, Math.round((totalHours - convenio.monthlyStandardHours) * 100) / 100);
   const regularHours = Math.min(totalHours, convenio.monthlyStandardHours);
 
   // Standard rates
@@ -342,6 +351,29 @@ export function calculateEmployeeStats(
   };
 }
 
+/**
+ * Determina si un turno está excluido del cómputo de cobertura presencial del puesto.
+ * Vacaciones (V), bajas médicas (BAJA) y descansos (L) computan en las horas del vigilante
+ * pero NO deben sumar a la fila COBERTURA (H/DÍA), ya que no cubren presencialmente el puesto.
+ */
+export function isShiftExcludedFromCoverage(shift: ShiftType): boolean {
+  if (shift.isOffDay) return true;
+  const upperCode = (shift.code || '').trim().toUpperCase();
+  if (upperCode === 'V' || upperCode === 'BAJA' || upperCode === 'L') {
+    return true;
+  }
+  const lowerName = (shift.name || '').toLowerCase();
+  if (
+    lowerName.includes('vacaci') ||
+    lowerName.includes('baja') ||
+    lowerName.includes('descanso') ||
+    lowerName.includes('libre')
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function calculateDailyCoverage(
   days: DayInfo[],
   employees: Employee[],
@@ -361,13 +393,14 @@ export function calculateDailyCoverage(
         const code = empAssigns[day.dayOfMonth];
         if (code) {
           const shift = shiftMap.get(code);
-          if (shift && !shift.isOffDay) {
+          if (shift && !isShiftExcludedFromCoverage(shift)) {
             dayTotal += shift.totalHours;
           }
         }
       }
     });
-    coverage[day.dayOfMonth] = dayTotal;
+    // Redondear a 2 decimales para evitar artefactos numéricos
+    coverage[day.dayOfMonth] = Math.round(dayTotal * 100) / 100;
   });
 
   return coverage;
