@@ -17,7 +17,6 @@ import {
   calculateEmployeeStats,
   getDaysInMonth,
 } from './services/calculationService';
-import { exportQuadrantToPDF } from './services/exportService';
 import { Header } from './components/Header';
 import { ShiftPalette } from './components/ShiftPalette';
 import { QuadrantGrid } from './components/QuadrantGrid';
@@ -29,6 +28,7 @@ import { EmployeeModal } from './components/EmployeeModal';
 import { NotificationModal } from './components/NotificationModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { DriveBackupModal } from './components/DriveBackupModal';
+import { ExportPdfModal } from './components/ExportPdfModal';
 import { QuadrantBackupData } from './services/driveService';
 import { Calendar as CalendarIcon } from 'lucide-react';
 
@@ -74,7 +74,24 @@ export default function App() {
 
   const [shifts, setShifts] = useState<ShiftType[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.SHIFTS);
-    return saved ? JSON.parse(saved) : DEFAULT_SHIFTS;
+    if (saved) {
+      try {
+        const parsed: ShiftType[] = JSON.parse(saved);
+        return parsed.map(s => {
+          if (s.code === 'V' && (s.totalHours === 5.22 || s.totalHours === 0)) {
+            return {
+              ...s,
+              totalHours: 5.4,
+              description: 'Vacaciones retribuidas (5,40h/día según convenio)',
+            };
+          }
+          return s;
+        });
+      } catch {
+        return DEFAULT_SHIFTS;
+      }
+    }
+    return DEFAULT_SHIFTS;
   });
 
   // Multimonth assignments map: [year][month][employeeId][day] = shiftCode
@@ -148,6 +165,7 @@ export default function App() {
   const [isResetMonthConfirmOpen, setIsResetMonthConfirmOpen] = useState(false);
   const [isDriveBackupOpen, setIsDriveBackupOpen] = useState(false);
   const [driveBackupInitialMode, setDriveBackupInitialMode] = useState<'save' | 'load'>('save');
+  const [isExportPdfOpen, setIsExportPdfOpen] = useState(false);
 
   // Persistence
   useEffect(() => {
@@ -425,18 +443,7 @@ export default function App() {
   };
 
   const handleExportPDF = () => {
-    exportQuadrantToPDF(
-      year,
-      month,
-      serviceName,
-      days,
-      employees,
-      currentMonthAssignments,
-      statsMap,
-      coverage,
-      shifts,
-      convenio
-    );
+    setIsExportPdfOpen(true);
   };
 
   return (
@@ -640,6 +647,10 @@ export default function App() {
         statsMap={statsMap}
         coverage={coverage}
         convenio={convenio}
+        onOpenExportPDF={() => {
+          setIsReportOpen(false);
+          setIsExportPdfOpen(true);
+        }}
       />
 
       <EmployeeModal
@@ -683,6 +694,19 @@ export default function App() {
         currentBackupData={currentBackupData}
         onRestoreBackupData={handleRestoreBackupData}
         initialMode={driveBackupInitialMode}
+      />
+
+      <ExportPdfModal
+        isOpen={isExportPdfOpen}
+        onClose={() => setIsExportPdfOpen(false)}
+        currentYear={year}
+        currentMonth={month}
+        serviceName={serviceName}
+        employees={employees}
+        shifts={shifts}
+        yearAssignmentsMap={yearAssignmentsMap}
+        convenio={convenio}
+        customHolidays={customHolidays}
       />
     </div>
   );

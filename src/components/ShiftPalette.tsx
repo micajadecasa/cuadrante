@@ -111,7 +111,7 @@ export const ShiftPalette: React.FC<ShiftPaletteProps> = ({
     const validNightHours = isNaN(parsedNight) ? 0 : Math.round(parsedNight * 100) / 100;
 
     const isVacation = formCode.trim().toUpperCase() === 'V';
-    // Si es día libre pero no vacaciones y el usuario puso 0, es 0; si puso 5.22, se preserva
+    // Si es día libre pero no vacaciones y el usuario puso 0, es 0; si puso 5.40, se preserva
     const resolvedTotal = formIsOffDay && !isVacation && validTotalHours === 0 ? 0 : validTotalHours;
 
     if (editingShift) {
@@ -371,7 +371,7 @@ export const ShiftPalette: React.FC<ShiftPaletteProps> = ({
                       if (checked && formCode.trim().toUpperCase() !== 'V') {
                         setFormTotalHours(0);
                       } else if (checked && formCode.trim().toUpperCase() === 'V' && (!formTotalHours || Number(formTotalHours) === 0)) {
-                        setFormTotalHours(5.22);
+                        setFormTotalHours(5.4);
                       }
                     }}
                     className="w-4 h-4 text-blue-600 rounded cursor-pointer"
@@ -382,7 +382,7 @@ export const ShiftPalette: React.FC<ShiftPaletteProps> = ({
                 </div>
                 {formIsOffDay && (
                   <p className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 leading-relaxed">
-                    <strong>Cómputo:</strong> Los descansos computan 0h. Para <strong>Vacaciones (V)</strong> retribuidas, introduce <strong>5,22h</strong> en "Total Horas" para que sumen al total mensual del trabajador sin añadirse a la cobertura diaria presencial (H/DÍA) del puesto.
+                    <strong>Cómputo:</strong> Los descansos computan 0h. Para <strong>Vacaciones (V)</strong> retribuidas, introduce <strong>5,40h</strong> en "Total Horas" para que sumen al total mensual del trabajador sin añadirse a la cobertura diaria presencial (H/DÍA) del puesto.
                   </p>
                 )}
               </div>
@@ -417,7 +417,7 @@ export const ShiftPalette: React.FC<ShiftPaletteProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Total Horas {formIsOffDay && '(ej. 5,22 para Vacaciones)'}
+                    Total Horas {formIsOffDay && '(ej. 5,40 para Vacaciones)'}
                   </label>
                   <input
                     type="text"
@@ -425,10 +425,10 @@ export const ShiftPalette: React.FC<ShiftPaletteProps> = ({
                     value={formTotalHours}
                     onChange={e => setFormTotalHours(e.target.value)}
                     className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-semibold"
-                    placeholder="ej. 8 o 5,22"
+                    placeholder="ej. 8 o 5,40"
                   />
                   <span className="text-[10px] text-slate-500 mt-0.5 block">
-                    Permite valores decimales como 5,22
+                    Permite valores decimales como 5,40
                   </span>
                 </div>
                 <div>

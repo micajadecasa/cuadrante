@@ -7,11 +7,45 @@ import {
   ShiftType,
 } from '../types/quadrant';
 import { GASTEIZ_LOGO_DATA_URL } from '../constants/logo';
+import {
+  calculateAnnualHoursForEmployee,
+  calculateDailyCoverage,
+  calculateEmployeeStats,
+  getDaysInMonth,
+} from './calculationService';
 
-const MONTH_NAMES_ES = [
+export const MONTH_NAMES_ES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ];
+
+/**
+ * ============================================================================
+ * GUÍA DE PERSONALIZACIÓN DEL PDF (src/services/exportService.ts)
+ * ============================================================================
+ * Para modificar el diseño, impresión o contenido del PDF de CuadrantePro:
+ * 
+ * 1. DIMENSIONES Y MÁRGENES:
+ *    - Modifica `marginX` (márgenes laterales) y `startY` (margen superior).
+ *    - `nameColWidth`: Ancho de la columna del vigilante (por defecto 32mm).
+ *    - `statsColWidth`: Ancho de cada columna de totales (por defecto 9mm).
+ *    - `cellHeight`: Altura de cada celda de turno (por defecto 7mm).
+ * 
+ * 2. COLORES Y ESTILOS:
+ *    - `doc.setFillColor(r, g, b)`: Color de fondo de los encabezados y celdas.
+ *    - `doc.setTextColor(r, g, b)`: Color de la tipografía.
+ *    - `doc.setFontSize(pt)`: Tamaño del texto.
+ *    - `doc.setDrawColor(r, g, b)`: Color de las líneas de cuadrícula.
+ * 
+ * 3. TEXTOS Y ENCABEZADOS:
+ *    - Título: 'CUADRANTE DE GASTEIZ DE VIGILANCIA'
+ *    - Subtítulo: 'Servicio: ... | Mes: ... | Cómputo Anual: 1 Ene - 31 Dic'
+ *    - Leyenda de turnos al inicio.
+ * 
+ * 4. FIRMAS:
+ *    - `signBoxWidth` y `signBoxHeight` al pie de cada hoja.
+ * ============================================================================
+ */
 
 /**
  * Convierte el SVG corporativo en imagen PNG para incrustar en el PDF con máxima fidelidad
@@ -152,26 +186,45 @@ export function exportQuadrantToCSV(
   URL.revokeObjectURL(url);
 }
 
-export async function exportQuadrantToPDF(
-  year: number,
-  month: number,
-  serviceName: string,
-  days: DayInfo[],
-  employees: Employee[],
-  assignments: Record<string, Record<number, string>>,
-  statsMap: Map<string, EmployeeMonthStats>,
-  coverage: Record<number, number>,
-  shifts: ShiftType[],
-  convenio: ConvenioSettings
-) {
-  const monthName = MONTH_NAMES_ES[month - 1];
-  // Landscape A4: 297mm x 210mm
-  const doc = new jsPDF({
-    orientation: 'landscape',
-    unit: 'mm',
-    format: 'a4',
-  });
+interface RenderSheetOptions {
+  year: number;
+  month: number;
+  serviceName: string;
+  days: DayInfo[];
+  employees: Employee[];
+  assignments: Record<string, Record<number, string>>;
+  statsMap: Map<string, EmployeeMonthStats>;
+  coverage: Record<number, number>;
+  shifts: ShiftType[];
+  convenio: ConvenioSettings;
+  pageNumber?: number;
+  totalPages?: number;
+}
 
+/**
+ * Dibuja una página completa de cuadrante mensual en el documento PDF
+ */
+function renderQuadrantSheet(
+  doc: jsPDF,
+  options: RenderSheetOptions,
+  logoPng: string
+) {
+  const {
+    year,
+    month,
+    serviceName,
+    days,
+    employees,
+    assignments,
+    statsMap,
+    coverage,
+    shifts,
+    convenio,
+    pageNumber,
+    totalPages,
+  } = options;
+
+  const monthName = MONTH_NAMES_ES[month - 1];
   const pageWidth = 297;
   const marginX = 8;
   const startY = 8;
@@ -180,39 +233,46 @@ export async function exportQuadrantToPDF(
   doc.setFillColor(15, 23, 42); // Slate-900
   doc.rect(marginX, startY, pageWidth - marginX * 2, 17, 'F');
 
-  // GV Shield Logo from image.png
+  // GV Shield Logo
   const logoX = marginX + 3;
   const logoY = startY + 2;
   const logoSize = 13;
 
-  try {
-    const logoPng = await getLogoPng();
-    if (logoPng) {
+  if (logoPng) {
+    try {
       doc.addImage(logoPng, 'PNG', logoX, logoY, logoSize, logoSize);
-    } else {
-      // Vector fallback
+    } catch {
       drawFallbackLogo(doc, logoX, logoY, logoSize);
     }
-  } catch {
+  } else {
     drawFallbackLogo(doc, logoX, logoY, logoSize);
   }
 
   // Main Title: CUADRANTE DE GASTEIZ DE VIGILANCIA
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(13.5);
+  doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
   doc.text('CUADRANTE DE GASTEIZ DE VIGILANCIA', logoX + 16, startY + 7);
 
   // Subtitle with Service Name and Month/Year
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(203, 213, 225);
-  doc.text(`Servicio: ${serviceName.toUpperCase()}  |  Mes: ${monthName.toUpperCase()} ${year}  |  Cómputo Anual: 1 Ene - 31 Dic`, logoX + 16, startY + 12.5);
+  doc.text(
+    `Servicio: ${serviceName.toUpperCase()}  |  Mes: ${monthName.toUpperCase()} ${year}  |  Cómputo Anual: 1 Ene - 31 Dic`,
+    logoX + 16,
+    startY + 12.5
+  );
 
   const datePrinted = new Date().toLocaleDateString('es-ES');
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setTextColor(148, 163, 184);
-  doc.text(`Emisión: ${datePrinted}`, pageWidth - marginX - 35, startY + 10);
+
+  let metaText = `Emisión: ${datePrinted}`;
+  if (totalPages && totalPages > 1 && pageNumber) {
+    metaText += `  |  Mes ${pageNumber}/${totalPages}`;
+  }
+  doc.text(metaText, pageWidth - marginX - 45, startY + 10);
 
   // Legend row
   let currentY = startY + 20;
@@ -237,7 +297,9 @@ export async function exportQuadrantToPDF(
   const numStatsCols = 5; // Días, Total Horas, Festivos (incl. sáb/dom), Noches, Anual (1 Ene - 31 Dic)
   const availableWidthForDays = pageWidth - marginX * 2 - nameColWidth - statsColWidth * numStatsCols;
   const dayColWidth = availableWidthForDays / numDays;
-  const cellHeight = 7;
+  
+  // Altura adaptativa de celda según el número de empleados para asegurar ajuste óptimo en A4
+  const cellHeight = employees.length > 8 ? 6 : 7;
 
   // Reset colors explicitly
   doc.setDrawColor(203, 213, 225); // Slate-300 lines
@@ -272,9 +334,9 @@ export async function exportQuadrantToPDF(
 
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text(String(d.dayOfMonth), curX + dayColWidth / 2, currentY + 4.8, { align: 'center' });
+    doc.text(String(d.dayOfMonth), curX + dayColWidth / 2, currentY + (cellHeight * 0.68), { align: 'center' });
 
-    // Row 2: Weekday name cell (Explicitly set fill & text colors to guarantee no black box!)
+    // Row 2: Weekday name cell
     if (isFestive) {
       doc.setFillColor(254, 226, 226); // Red-100
       doc.setTextColor(185, 28, 28); // Dark Red
@@ -287,7 +349,7 @@ export async function exportQuadrantToPDF(
 
     doc.setFontSize(6.5);
     doc.setFont('helvetica', isFestive ? 'bold' : 'normal');
-    doc.text(d.dayOfWeekName, curX + dayColWidth / 2, currentY + cellHeight + 4.8, { align: 'center' });
+    doc.text(d.dayOfWeekName, curX + dayColWidth / 2, currentY + cellHeight + (cellHeight * 0.68), { align: 'center' });
 
     curX += dayColWidth;
   });
@@ -324,7 +386,7 @@ export async function exportQuadrantToPDF(
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text(emp.name, rowX + 2, currentY + 4.8);
+    doc.text(emp.name, rowX + 2, currentY + (cellHeight * 0.68));
 
     rowX += nameColWidth;
 
@@ -353,9 +415,10 @@ export async function exportQuadrantToPDF(
         if (code === 'A') doc.setTextColor(37, 99, 235);
         else if (code === 'B') doc.setTextColor(5, 150, 105);
         else if (code === 'C') doc.setTextColor(124, 58, 237);
+        else if (code === 'V') doc.setTextColor(180, 83, 9);
         else doc.setTextColor(30, 41, 59);
 
-        doc.text(code, rowX + dayColWidth / 2, currentY + 5, { align: 'center' });
+        doc.text(code, rowX + dayColWidth / 2, currentY + (cellHeight * 0.7), { align: 'center' });
       }
 
       rowX += dayColWidth;
@@ -381,7 +444,7 @@ export async function exportQuadrantToPDF(
       doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42);
-      doc.text(String(val), rowX + statsColWidth / 2, currentY + 4.8, { align: 'center' });
+      doc.text(String(val), rowX + statsColWidth / 2, currentY + (cellHeight * 0.68), { align: 'center' });
       rowX += statsColWidth;
     });
 
@@ -396,7 +459,7 @@ export async function exportQuadrantToPDF(
   doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(153, 27, 27);
-  doc.text('COBERTURA (H)', covX + 2, currentY + 4.8);
+  doc.text('COBERTURA (H)', covX + 2, currentY + (cellHeight * 0.68));
 
   covX += nameColWidth;
 
@@ -416,7 +479,7 @@ export async function exportQuadrantToPDF(
     doc.setFontSize(6.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text(String(hours), covX + dayColWidth / 2, currentY + 4.8, { align: 'center' });
+    doc.text(String(hours), covX + dayColWidth / 2, currentY + (cellHeight * 0.68), { align: 'center' });
     covX += dayColWidth;
   });
 
@@ -427,7 +490,7 @@ export async function exportQuadrantToPDF(
   doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(`Total: ${totalCov} h`, covX + (statsColWidth * numStatsCols) / 2, currentY + 4.8, { align: 'center' });
+  doc.text(`Total: ${totalCov} h`, covX + (statsColWidth * numStatsCols) / 2, currentY + (cellHeight * 0.68), { align: 'center' });
 
   currentY += cellHeight + 6;
 
@@ -443,8 +506,137 @@ export async function exportQuadrantToPDF(
 
   doc.rect(pageWidth - marginX - signBoxWidth - 15, currentY, signBoxWidth, signBoxHeight);
   doc.text('Firma y Conformidad de los Vigilantes de Seguridad', pageWidth - marginX - signBoxWidth - 12, currentY + 5);
+}
+
+/**
+ * Exporta un único mes del cuadrante a PDF oficial
+ */
+export async function exportQuadrantToPDF(
+  year: number,
+  month: number,
+  serviceName: string,
+  days: DayInfo[],
+  employees: Employee[],
+  assignments: Record<string, Record<number, string>>,
+  statsMap: Map<string, EmployeeMonthStats>,
+  coverage: Record<number, number>,
+  shifts: ShiftType[],
+  convenio: ConvenioSettings
+) {
+  const monthName = MONTH_NAMES_ES[month - 1];
+  // Landscape A4: 297mm x 210mm
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const logoPng = await getLogoPng();
+
+  renderQuadrantSheet(
+    doc,
+    {
+      year,
+      month,
+      serviceName,
+      days,
+      employees,
+      assignments,
+      statsMap,
+      coverage,
+      shifts,
+      convenio,
+    },
+    logoPng
+  );
 
   doc.save(`Cuadrante_Gasteiz_Vigilancia_${monthName}_${year}.pdf`);
+}
+
+/**
+ * Exporta los 12 meses completos del año (Enero a Diciembre) en un único PDF oficial,
+ * con 1 página por mes, calculando automáticamente turnos, estadísticas y coberturas.
+ */
+export async function exportAnnualQuadrantToPDF({
+  year,
+  serviceName,
+  employees,
+  yearAssignmentsMap,
+  shifts,
+  convenio,
+  customHolidays,
+}: {
+  year: number;
+  serviceName: string;
+  employees: Employee[];
+  yearAssignmentsMap: Record<number, Record<number, Record<string, Record<number, string>>>>;
+  shifts: ShiftType[];
+  convenio: ConvenioSettings;
+  customHolidays?: Record<string, string>;
+}) {
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const logoPng = await getLogoPng();
+  const yearData = yearAssignmentsMap[year] || {};
+
+  for (let m = 1; m <= 12; m++) {
+    if (m > 1) {
+      doc.addPage('a4', 'landscape');
+    }
+
+    const days = getDaysInMonth(year, m, customHolidays);
+    const monthAssignments = yearData[m] || {};
+
+    // Calcular estadísticas de cada vigilante para el mes m
+    const statsMap = new Map<string, EmployeeMonthStats>();
+    employees.forEach(emp => {
+      const empAssigns = monthAssignments[emp.id];
+      const annualHours = calculateAnnualHoursForEmployee(
+        emp.id,
+        year,
+        yearData,
+        shifts
+      );
+      const stats = calculateEmployeeStats(
+        emp,
+        empAssigns,
+        days,
+        shifts,
+        convenio,
+        annualHours,
+        customHolidays
+      );
+      statsMap.set(emp.id, stats);
+    });
+
+    // Calcular cobertura diaria del mes m
+    const coverage = calculateDailyCoverage(days, employees, monthAssignments, shifts);
+
+    renderQuadrantSheet(
+      doc,
+      {
+        year,
+        month: m,
+        serviceName,
+        days,
+        employees,
+        assignments: monthAssignments,
+        statsMap,
+        coverage,
+        shifts,
+        convenio,
+        pageNumber: m,
+        totalPages: 12,
+      },
+      logoPng
+    );
+  }
+
+  doc.save(`Cuadrante_Gasteiz_Vigilancia_Completo_${year}_12_Meses.pdf`);
 }
 
 function drawFallbackLogo(doc: jsPDF, x: number, y: number, size: number) {

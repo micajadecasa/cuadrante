@@ -211,7 +211,7 @@ export function calculateAnnualHoursForEmployee(
         if (!code) return;
         const shift = shiftMap.get(code);
         if (shift && shift.totalHours > 0) {
-          // Suma turnos de trabajo y vacaciones retribuidas (ej. 5.22h)
+          // Suma turnos de trabajo y vacaciones retribuidas (ej. 5,40h)
           if (!shift.isOffDay || shift.code === 'V') {
             totalAnnual += shift.totalHours;
           }

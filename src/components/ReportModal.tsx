@@ -32,6 +32,7 @@ interface ReportModalProps {
   statsMap: Map<string, EmployeeMonthStats>;
   coverage: Record<number, number>;
   convenio: ConvenioSettings;
+  onOpenExportPDF?: () => void;
 }
 
 const MONTH_NAMES_ES = [
@@ -52,6 +53,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   statsMap,
   coverage,
   convenio,
+  onOpenExportPDF,
 }) => {
   const [selectedEmpId, setSelectedEmpId] = useState<string>('ALL');
   const [copied, setCopied] = useState(false);
@@ -80,6 +82,10 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   };
 
   const handleExportPDF = () => {
+    if (onOpenExportPDF) {
+      onOpenExportPDF();
+      return;
+    }
     exportQuadrantToPDF(
       year,
       month,
